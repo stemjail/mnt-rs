@@ -53,8 +53,14 @@ impl Mount {
                 let file = try!(tokens.next().ok_or(Slice("Missing field #2 (file)")));
                 let path = Path::new_opt(file);
                 match path {
-                    Some(p) => p,
-                    None => return Err(Owned(format!("Bad field #2 (file) value: {}", file))),
+                    Some(p) => {
+                        if p.is_relative() {
+                            return Err(Owned(format!("Bad field #2 (file) value \
+                                                     (not absolute path): {}", file)));
+                        }
+                        p
+                    },
+                    _ => return Err(Owned(format!("Bad field #2 (file) value: {}", file))),
                 }
             },
             vfstype: try!(tokens.next().ok_or(Slice("Missing field #3 (vfstype)"))).to_string(),
@@ -145,4 +151,12 @@ fn test_file(path: &Path) -> Result<(), String> {
 #[test]
 fn test_proc_mounts() {
     assert!(test_file(&Path::new("/proc/mounts")).is_ok());
+}
+
+#[test]
+fn test_path() {
+    assert!(Mount::from_str("rootfs ./ rootfs rw 0 0").is_err());
+    assert!(Mount::from_str("rootfs foo rootfs rw 0 0").is_err());
+    // Should fail for a swap pseudo-mount
+    assert!(Mount::from_str("/dev/mapper/swap none swap sw 0 0").is_err());
 }
