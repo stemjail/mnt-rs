@@ -15,6 +15,7 @@
 extern crate libc;
 
 use libc::c_int;
+use std::fmt;
 use std::str::{FromStr, MaybeOwned, Owned, Slice};
 
 #[cfg(test)]
@@ -30,10 +31,10 @@ pub enum DumpField {
 
 pub type PassField = Option<c_int>;
 
-#[deriving(Clone, PartialEq, Eq, Show)]
+#[deriving(Clone, PartialEq, Eq)]
 pub struct Mount {
     pub spec: String,
-    pub file: String,
+    pub file: Path,
     pub vfstype: String,
     // TODO: mntops: Vec<MntOps>
     pub mntops: Vec<String>,
@@ -48,7 +49,14 @@ impl Mount {
             .filter(|s| { s != &""  } );
         Ok(Mount {
             spec: try!(tokens.next().ok_or(Slice("Missing field #1 (spec)"))).to_string(),
-            file: try!(tokens.next().ok_or(Slice("Missing field #2 (file)"))).to_string(),
+            file: {
+                let file = try!(tokens.next().ok_or(Slice("Missing field #2 (file)")));
+                let path = Path::new_opt(file);
+                match path {
+                    Some(p) => p,
+                    None => return Err(Owned(format!("Bad field #2 (file) value: {}", file))),
+                }
+            },
             vfstype: try!(tokens.next().ok_or(Slice("Missing field #3 (vfstype)"))).to_string(),
             mntops: try!(tokens.next().ok_or(Slice("Missing field #4 (mntops)")))
                 .split_terminator(',').map(|x| { x.to_string() }).collect(),
@@ -72,6 +80,13 @@ impl Mount {
     }
 }
 
+impl fmt::Show for Mount {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        write!(out, "Mount {{ spec: {}, file: {} vfstype: {} mntops: {}, freq: {}, passno: {} }}",
+               self.spec, self.file.display(), self.vfstype, self.mntops, self.freq, self.passno)
+    }
+}
+
 impl FromStr for Mount {
     fn from_str(line: &str) -> Option<Mount> {
         Mount::from_str(line).ok()
@@ -82,7 +97,7 @@ impl FromStr for Mount {
 fn test_line_root() {
     let root_ref = Mount {
         spec: "rootfs".to_string(),
-        file: "/".to_string(),
+        file: Path::new("/"),
         vfstype: "rootfs".to_string(),
         mntops: vec!("rw".to_string()),
         freq: DumpField::Ignore,
@@ -98,7 +113,7 @@ fn test_line_root() {
 fn test_line_mntops() {
     let root_ref = Mount {
         spec: "rootfs".to_string(),
-        file: "/".to_string(),
+        file: Path::new("/"),
         vfstype: "rootfs".to_string(),
         mntops: vec!("noexec".to_string(), "rw".to_string()),
         freq: DumpField::Ignore,
