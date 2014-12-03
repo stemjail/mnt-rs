@@ -15,22 +15,14 @@
 extern crate mnt;
 
 use mnt::Mount;
-use std::io::fs::File;
-use std::io::IoResult;
-
-fn list_mounts(path: &Path) -> IoResult<()> {
-    let file = try!(File::open(path));
-    let mut mount = std::io::BufferedReader::new(file);
-    for line in mount.lines() {
-        let line = try!(line);
-        match Mount::from_str(line.as_slice()) {
-            Ok(m) => println!("Found: {}", m),
-            Err(e) => println!("Error for `{}`: {}", line.trim(), e),
-        }
-    }
-    Ok(())
-}
 
 fn main() {
-    let _ = list_mounts(&Path::new("/proc/mounts"));
+    match Mount::get_mounts() {
+        Ok(list) => {
+            for mount in list.iter() {
+                println!("* {}", mount);
+            }
+        },
+        Err(e) => println!("Error: {}", e),
+    };
 }

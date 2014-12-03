@@ -15,13 +15,47 @@
 extern crate libc;
 
 use libc::c_int;
+use std::error::{Error, FromError};
 use std::fmt;
+use std::io::fs::File;
+use std::io::IoError;
 use std::str::{FromStr, MaybeOwned, Owned, Slice};
 
-#[cfg(test)]
-use std::io::fs::File;
-#[cfg(test)]
-use std::io::IoResult;
+const PROC_MOUNTS: &'static str = "/proc/mounts";
+
+pub struct ParseError {
+    detail: String,
+}
+
+impl ParseError {
+    fn new(detail: String) -> ParseError {
+        ParseError {
+            detail: detail,
+        }
+    }
+}
+
+impl Error for ParseError {
+    fn description(&self) -> &str {
+        "Mount parsing"
+    }
+
+    fn detail(&self) -> Option<String> {
+        Some(self.detail.clone())
+    }
+}
+
+impl FromError<IoError> for ParseError {
+    fn from_error(err: IoError) -> ParseError {
+        ParseError::new(format!("Fail to read the mounts file ({})", err))
+    }
+}
+
+impl fmt::Show for ParseError {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        write!(out, "{}: {}", self.description(), self.detail)
+    }
+}
 
 #[deriving(Clone, PartialEq, Eq, Show)]
 pub enum DumpField {
@@ -83,6 +117,21 @@ impl Mount {
                 }
             },
         })
+    }
+
+    // TODO: Return an iterator with `iter_mounts()`
+    pub fn get_mounts() -> Result<Vec<Mount>, ParseError> {
+        let file = try!(File::open(&Path::new(PROC_MOUNTS)));
+        let mut mount = std::io::BufferedReader::new(file);
+        let mut ret = vec!();
+        for line in mount.lines() {
+            let line = try!(line);
+            match Mount::from_str(line.as_slice()) {
+                Ok(m) => ret.push(m),
+                Err(e) => return Err(ParseError::new(format!("Fail to parse `{}`: {}", line.trim(), e))),
+            }
+        }
+        Ok(ret)
     }
 }
 
