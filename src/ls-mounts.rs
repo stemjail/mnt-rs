@@ -20,7 +20,7 @@ fn list_mounts() {
     let root = Path::new("/");
     match Mount::get_mounts(&root) {
         Ok(list) => {
-            for mount in list.iter() {
+            for mount in Mount::remove_overlaps(list).iter() {
                 println!("* {}", mount);
             }
         },

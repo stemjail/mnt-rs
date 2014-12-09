@@ -137,6 +137,30 @@ impl Mount {
         }
         Ok(ret)
     }
+
+    pub fn remove_overlaps(mounts: Vec<Mount>) -> Vec<Mount> {
+        let mut sorted: Vec<Mount> = vec!();
+        let root = Path::new("/");
+        'list: for mount in mounts.into_iter().rev() {
+            // Strip fake root mounts (created from bind mounts)
+            if mount.file == root {
+                continue 'list;
+            }
+            let mut has_overlaps = false;
+            'filter: for mount_sorted in sorted.iter() {
+                // Check for mount overlaps
+                if mount_sorted.file.is_ancestor_of(&mount.file) {
+                    has_overlaps = true;
+                    break 'filter;
+                }
+            }
+            if !has_overlaps {
+                sorted.push(mount);
+            }
+        }
+        sorted.reverse();
+        sorted
+    }
 }
 
 impl fmt::Show for Mount {
@@ -149,6 +173,18 @@ impl fmt::Show for Mount {
 impl FromStr for Mount {
     fn from_str(line: &str) -> Option<Mount> {
         Mount::from_str(line).ok()
+    }
+}
+
+impl PartialOrd for Mount {
+    fn partial_cmp(&self, other: &Mount) -> Option<Ordering> {
+        self.file.partial_cmp(&other.file)
+    }
+}
+
+impl Ord for Mount {
+    fn cmp(&self, other: &Mount) -> Ordering {
+        self.file.cmp(&other.file)
     }
 }
 
