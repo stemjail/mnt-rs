@@ -16,13 +16,18 @@ extern crate mnt;
 
 use mnt::Mount;
 
-fn main() {
-    match Mount::get_mounts() {
+fn list_mounts() {
+    let root = Path::new("/");
+    match Mount::get_mounts(&root) {
         Ok(list) => {
             for mount in list.iter() {
                 println!("* {}", mount);
             }
         },
         Err(e) => println!("Error: {}", e),
-    };
+    }
+}
+
+fn main() {
+    list_mounts();
 }

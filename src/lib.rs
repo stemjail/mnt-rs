@@ -120,14 +120,18 @@ impl Mount {
     }
 
     // TODO: Return an iterator with `iter_mounts()`
-    pub fn get_mounts() -> Result<Vec<Mount>, ParseError> {
+    pub fn get_mounts(root: &Path) -> Result<Vec<Mount>, ParseError> {
         let file = try!(File::open(&Path::new(PROC_MOUNTS)));
         let mut mount = std::io::BufferedReader::new(file);
         let mut ret = vec!();
         for line in mount.lines() {
             let line = try!(line);
             match Mount::from_str(line.as_slice()) {
-                Ok(m) => ret.push(m),
+                Ok(m) => {
+                    if root.is_ancestor_of(&m.file) {
+                        ret.push(m);
+                    }
+                },
                 Err(e) => return Err(ParseError::new(format!("Fail to parse `{}`: {}", line.trim(), e))),
             }
         }
