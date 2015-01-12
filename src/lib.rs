@@ -82,7 +82,7 @@ pub struct Mount {
 impl Mount {
     pub fn from_str(line: &str) -> Result<Mount, CowString> {
         let line = line.trim();
-        let mut tokens = line.split_terminator(|s: char| { s == ' ' || s == '\t' })
+        let mut tokens = line.split_terminator(|&: s: char| { s == ' ' || s == '\t' })
             .filter(|s| { s != &""  } );
         Ok(Mount {
             spec: try!(tokens.next().ok_or(Borrowed("Missing field #1 (spec)"))).to_string(),
@@ -168,7 +168,7 @@ impl Mount {
 
 impl fmt::Show for Mount {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
-        write!(out, "Mount {{ spec: {}, file: {} vfstype: {} mntops: {}, freq: {}, passno: {} }}",
+        write!(out, "Mount {{ spec: {:?}, file: {:?} vfstype: {:?} mntops: {:?}, freq: {:?}, passno: {:?} }}",
                self.spec, self.file.display(), self.vfstype, self.mntops, self.freq, self.passno)
     }
 }

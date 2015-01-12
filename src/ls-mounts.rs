@@ -21,10 +21,10 @@ fn list_mounts() {
     match Mount::get_mounts(&root) {
         Ok(list) => {
             for mount in Mount::remove_overlaps(list).iter() {
-                println!("* {}", mount);
+                println!("* {:?}", mount);
             }
         },
-        Err(e) => println!("Error: {}", e),
+        Err(e) => println!("Error: {:?}", e),
     }
 }
 
