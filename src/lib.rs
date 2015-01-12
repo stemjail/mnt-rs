@@ -15,11 +15,13 @@
 extern crate libc;
 
 use libc::c_int;
+use std::borrow::Cow::{Borrowed, Owned};
 use std::error::{Error, FromError};
 use std::fmt;
 use std::io::fs::File;
 use std::io::IoError;
-use std::str::{FromStr, MaybeOwned, Owned, Slice};
+use std::str::FromStr;
+use std::string::CowString;
 
 const PROC_MOUNTS: &'static str = "/proc/mounts";
 
@@ -77,14 +79,14 @@ pub struct Mount {
 }
 
 impl Mount {
-    pub fn from_str(line: &str) -> Result<Mount, MaybeOwned> {
+    pub fn from_str(line: &str) -> Result<Mount, CowString> {
         let line = line.trim();
         let mut tokens = line.split_terminator(|s: char| { s == ' ' || s == '\t' })
             .filter(|s| { s != &""  } );
         Ok(Mount {
-            spec: try!(tokens.next().ok_or(Slice("Missing field #1 (spec)"))).to_string(),
+            spec: try!(tokens.next().ok_or(Borrowed("Missing field #1 (spec)"))).to_string(),
             file: {
-                let file = try!(tokens.next().ok_or(Slice("Missing field #2 (file)")));
+                let file = try!(tokens.next().ok_or(Borrowed("Missing field #2 (file)")));
                 let path = Path::new_opt(file);
                 match path {
                     Some(p) => {
@@ -97,20 +99,20 @@ impl Mount {
                     _ => return Err(Owned(format!("Bad field #2 (file) value: {}", file))),
                 }
             },
-            vfstype: try!(tokens.next().ok_or(Slice("Missing field #3 (vfstype)"))).to_string(),
-            mntops: try!(tokens.next().ok_or(Slice("Missing field #4 (mntops)")))
+            vfstype: try!(tokens.next().ok_or(Borrowed("Missing field #3 (vfstype)"))).to_string(),
+            mntops: try!(tokens.next().ok_or(Borrowed("Missing field #4 (mntops)")))
                 .split_terminator(',').map(|x| { x.to_string() }).collect(),
             freq: {
-                let freq = try!(tokens.next().ok_or(Slice("Missing field #5 (freq)")));
-                match from_str::<c_int>(freq) {
+                let freq = try!(tokens.next().ok_or(Borrowed("Missing field #5 (freq)")));
+                match FromStr::from_str(freq) {
                     Some(0) => DumpField::Ignore,
                     Some(1) => DumpField::Backup,
                     _ => return Err(Owned(format!("Bad field #5 (dump) value: {}", freq))),
                 }
             },
             passno: {
-                let passno = try!(tokens.next().ok_or(Slice("Missing field #6 (passno)")));
-                match from_str(passno) {
+                let passno = try!(tokens.next().ok_or(Borrowed("Missing field #6 (passno)")));
+                match FromStr::from_str(passno) {
                     Some(0) => None,
                     Some(f) if f > 0 => Some(f),
                     _ => return Err(Owned(format!("Bad field #6 (passno) value: {}", passno))),
