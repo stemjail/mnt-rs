@@ -59,7 +59,7 @@ impl fmt::Show for ParseError {
     }
 }
 
-#[deriving(Clone, PartialEq, Eq, Show)]
+#[derive(Clone, Copy, PartialEq, Eq, Show)]
 pub enum DumpField {
     Ignore = 0,
     Backup = 1,
@@ -67,7 +67,7 @@ pub enum DumpField {
 
 pub type PassField = Option<c_int>;
 
-#[deriving(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Mount {
     pub spec: String,
     pub file: Path,
