@@ -16,6 +16,7 @@ extern crate libc;
 
 use libc::c_int;
 use std::borrow::Cow::{Borrowed, Owned};
+use std::cmp::Ordering;
 use std::error::{Error, FromError};
 use std::fmt;
 use std::io::fs::File;
