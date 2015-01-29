@@ -25,8 +25,8 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::Ordering;
 use std::error::{Error, FromError};
 use std::fmt;
-use std::io::fs::File;
-use std::io::IoError;
+use std::old_io::fs::File;
+use std::old_io::IoError;
 use std::str::FromStr;
 use std::string::CowString;
 
@@ -131,7 +131,7 @@ impl Mount {
     // TODO: Return an iterator with `iter_mounts()`
     pub fn get_mounts(root: &Path) -> Result<Vec<Mount>, ParseError> {
         let file = try!(File::open(&Path::new(PROC_MOUNTS)));
-        let mut mount = std::io::BufferedReader::new(file);
+        let mut mount = std::old_io::BufferedReader::new(file);
         let mut ret = vec!();
         for line in mount.lines() {
             let line = try!(line);
@@ -232,7 +232,7 @@ fn test_file(path: &Path) -> Result<(), String> {
         Ok(f) => f,
         Err(e) => return Err(format!("Fail to open {}: {}", path.display(), e)),
     };
-    let mut mount = std::io::BufferedReader::new(file);
+    let mut mount = std::old_io::BufferedReader::new(file);
     for line in mount.lines() {
         let line = match line {
             Ok(l) => l,
