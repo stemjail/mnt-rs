@@ -33,40 +33,37 @@ use std::string::CowString;
 const PROC_MOUNTS: &'static str = "/proc/mounts";
 
 pub struct ParseError {
-    detail: String,
+    desc: String,
+    // TODO: cause: Option<&'a (Error + 'a)>,
 }
 
 impl ParseError {
     fn new(detail: String) -> ParseError {
         ParseError {
-            detail: detail,
+            desc: format!("Mount parsing: {}", detail),
         }
     }
 }
 
 impl Error for ParseError {
     fn description(&self) -> &str {
-        "Mount parsing"
-    }
-
-    fn detail(&self) -> Option<String> {
-        Some(self.detail.clone())
+        self.desc.as_slice()
     }
 }
 
 impl FromError<IoError> for ParseError {
     fn from_error(err: IoError) -> ParseError {
-        ParseError::new(format!("Fail to read the mounts file ({})", err))
+        ParseError::new(format!("Fail to read the mounts file: {}", err))
     }
 }
 
-impl fmt::Show for ParseError {
+impl fmt::Display for ParseError {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
-        write!(out, "{}: {}", self.description(), self.detail)
+        write!(out, "{}", self.description())
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Show)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DumpField {
     Ignore = 0,
     Backup = 1,
@@ -172,7 +169,7 @@ impl Mount {
     }
 }
 
-impl fmt::Show for Mount {
+impl fmt::Debug for Mount {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         write!(out, "Mount {{ spec: {:?}, file: {:?} vfstype: {:?} mntops: {:?}, freq: {:?}, passno: {:?} }}",
                self.spec, self.file.display(), self.vfstype, self.mntops, self.freq, self.passno)

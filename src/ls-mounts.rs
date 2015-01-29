@@ -26,7 +26,7 @@ fn list_mounts() {
                 println!("* {:?}", mount);
             }
         },
-        Err(e) => println!("Error: {:?}", e),
+        Err(e) => println!("Error: {}", e),
     }
 }
 
