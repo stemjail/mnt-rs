@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Mickaël Salaün
+// Copyright (C) 2014-2015 Mickaël Salaün
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -144,7 +144,8 @@ impl Mount {
         Ok(ret)
     }
 
-    pub fn remove_overlaps(mounts: Vec<Mount>) -> Vec<Mount> {
+    // FIXME: Doesn't work for moved mounts: they don't change order
+    pub fn remove_overlaps(mounts: Vec<Mount>, exclude_files: &Vec<&Path>) -> Vec<Mount> {
         let mut sorted: Vec<Mount> = vec!();
         let root = Path::new("/");
         'list: for mount in mounts.into_iter().rev() {
@@ -154,6 +155,9 @@ impl Mount {
             }
             let mut has_overlaps = false;
             'filter: for mount_sorted in sorted.iter() {
+                if exclude_files.iter().skip_while(|&x| mount_sorted.file != **x).next().is_some() {
+                    continue 'filter;
+                }
                 // Check for mount overlaps
                 if mount_sorted.file.is_ancestor_of(&mount.file) {
                     has_overlaps = true;
