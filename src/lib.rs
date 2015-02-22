@@ -50,8 +50,9 @@ pub struct Mount {
     pub passno: PassField,
 }
 
-impl Mount {
-    pub fn from_str(line: &str) -> Result<Mount, LineError> {
+impl<'a> FromStr for Mount {
+    type Err = LineError<'a>;
+    fn from_str(line: &str) -> Result<Mount, LineError> {
         let line = line.trim();
         let mut tokens = line.split_terminator(|&: s: char| { s == ' ' || s == '\t' })
             .filter(|s| { s != &""  } );
@@ -91,7 +92,9 @@ impl Mount {
             },
         })
     }
+}
 
+impl Mount {
     // TODO: Return an iterator with `iter_mounts()`
     pub fn get_mounts(root: &Path) -> Result<Vec<Mount>, ParseError> {
         let file = try!(File::open(&Path::new(PROC_MOUNTS)));
@@ -101,7 +104,7 @@ impl Mount {
         for line in mount.lines() {
             let line = try!(line);
             line_nb += 1;
-            match Mount::from_str(line.as_slice()) {
+            match <Mount as FromStr>::from_str(line.as_slice()) {
                 Ok(m) => {
                     if root.is_ancestor_of(&m.file) {
                         ret.push(m);
@@ -149,13 +152,6 @@ impl fmt::Debug for Mount {
     }
 }
 
-impl<'a> FromStr for Mount {
-    type Err = LineError<'a>;
-    fn from_str(line: &str) -> Result<Mount, LineError> {
-        Mount::from_str(line)
-    }
-}
-
 impl PartialOrd for Mount {
     fn partial_cmp(&self, other: &Mount) -> Option<Ordering> {
         self.file.partial_cmp(&other.file)
@@ -178,10 +174,11 @@ fn test_line_root() {
         freq: DumpField::Ignore,
         passno: None,
     };
-    assert_eq!(&Mount::from_str("rootfs / rootfs rw 0 0"), &Ok(root_ref.clone()));
-    assert_eq!(&Mount::from_str("rootfs   / rootfs rw 0 0"), &Ok(root_ref.clone()));
-    assert_eq!(&Mount::from_str("rootfs	/ rootfs rw 0 0"), &Ok(root_ref.clone()));
-    assert_eq!(&Mount::from_str("rootfs / rootfs rw, 0 0"), &Ok(root_ref.clone()));
+    let from_str = <Mount as FromStr>::from_str;
+    assert_eq!(from_str("rootfs / rootfs rw 0 0"), Ok(root_ref.clone()));
+    assert_eq!(from_str("rootfs   / rootfs rw 0 0"), Ok(root_ref.clone()));
+    assert_eq!(from_str("rootfs	/ rootfs rw 0 0"), Ok(root_ref.clone()));
+    assert_eq!(from_str("rootfs / rootfs rw, 0 0"), Ok(root_ref.clone()));
 }
 
 #[test]
@@ -194,7 +191,8 @@ fn test_line_mntops() {
         freq: DumpField::Ignore,
         passno: None,
     };
-    assert_eq!(&Mount::from_str("rootfs / rootfs noexec,rw 0 0"), &Ok(root_ref.clone()));
+    let from_str = <Mount as FromStr>::from_str;
+    assert_eq!(from_str("rootfs / rootfs noexec,rw 0 0"), Ok(root_ref.clone()));
 }
 
 #[cfg(test)]
@@ -209,7 +207,7 @@ fn test_file(path: &Path) -> Result<(), String> {
             Ok(l) => l,
             Err(e) => return Err(format!("Fail to read line: {}", e)),
         };
-        match Mount::from_str(line.as_slice()) {
+        match <Mount as FromStr>::from_str(line.as_slice()) {
             Ok(_) => {},
             Err(e) => return Err(format!("Error for `{}`: {}", line.trim(), e)),
         }
@@ -224,8 +222,9 @@ fn test_proc_mounts() {
 
 #[test]
 fn test_path() {
-    assert!(Mount::from_str("rootfs ./ rootfs rw 0 0").is_err());
-    assert!(Mount::from_str("rootfs foo rootfs rw 0 0").is_err());
+    let from_str = <Mount as FromStr>::from_str;
+    assert!(from_str("rootfs ./ rootfs rw 0 0").is_err());
+    assert!(from_str("rootfs foo rootfs rw 0 0").is_err());
     // Should fail for a swap pseudo-mount
-    assert!(Mount::from_str("/dev/mapper/swap none swap sw 0 0").is_err());
+    assert!(from_str("/dev/mapper/swap none swap sw 0 0").is_err());
 }
