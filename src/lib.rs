@@ -97,15 +97,17 @@ impl Mount {
         let file = try!(File::open(&Path::new(PROC_MOUNTS)));
         let mut mount = std::old_io::BufferedReader::new(file);
         let mut ret = vec!();
+        let mut line_nb = 0;
         for line in mount.lines() {
             let line = try!(line);
+            line_nb += 1;
             match Mount::from_str(line.as_slice()) {
                 Ok(m) => {
                     if root.is_ancestor_of(&m.file) {
                         ret.push(m);
                     }
                 },
-                Err(e) => return Err(ParseError::new(format!("Fail to parse `{}`: {}", line.trim(), e))),
+                Err(e) => return Err(ParseError::new(format!("Fail at line {}: {}", line_nb, e))),
             }
         }
         Ok(ret)
