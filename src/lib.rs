@@ -22,12 +22,10 @@ extern crate libc;
 
 use libc::c_int;
 use self::error::*;
-use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::Ordering;
 use std::fmt;
 use std::old_io::fs::File;
 use std::str::FromStr;
-use std::string::CowString;
 
 mod error;
 
@@ -53,43 +51,42 @@ pub struct Mount {
 }
 
 impl Mount {
-    pub fn from_str(line: &str) -> Result<Mount, CowString> {
+    pub fn from_str(line: &str) -> Result<Mount, LineError> {
         let line = line.trim();
         let mut tokens = line.split_terminator(|&: s: char| { s == ' ' || s == '\t' })
             .filter(|s| { s != &""  } );
         Ok(Mount {
-            spec: try!(tokens.next().ok_or(Borrowed("Missing field #1 (spec)"))).to_string(),
+            spec: try!(tokens.next().ok_or(LineError::MissingSpec)).to_string(),
             file: {
-                let file = try!(tokens.next().ok_or(Borrowed("Missing field #2 (file)")));
+                let file = try!(tokens.next().ok_or(LineError::MissingFile));
                 let path = Path::new_opt(file);
                 match path {
                     Some(p) => {
                         if p.is_relative() {
-                            return Err(Owned(format!("Bad field #2 (file) value \
-                                                     (not absolute path): {}", file)));
+                            return Err(LineError::InvalidFilePath(file));
                         }
                         p
                     },
-                    _ => return Err(Owned(format!("Bad field #2 (file) value: {}", file))),
+                    _ => return Err(LineError::InvalidFile(file)),
                 }
             },
-            vfstype: try!(tokens.next().ok_or(Borrowed("Missing field #3 (vfstype)"))).to_string(),
-            mntops: try!(tokens.next().ok_or(Borrowed("Missing field #4 (mntops)")))
+            vfstype: try!(tokens.next().ok_or(LineError::MissingVfstype)).to_string(),
+            mntops: try!(tokens.next().ok_or(LineError::MissingMntops))
                 .split_terminator(',').map(|x| { x.to_string() }).collect(),
             freq: {
-                let freq = try!(tokens.next().ok_or(Borrowed("Missing field #5 (freq)")));
+                let freq = try!(tokens.next().ok_or(LineError::MissingFreq));
                 match FromStr::from_str(freq) {
-                    Some(0) => DumpField::Ignore,
-                    Some(1) => DumpField::Backup,
-                    _ => return Err(Owned(format!("Bad field #5 (dump) value: {}", freq))),
+                    Ok(0) => DumpField::Ignore,
+                    Ok(1) => DumpField::Backup,
+                    _ => return Err(LineError::InvalidFreq(freq)),
                 }
             },
             passno: {
-                let passno = try!(tokens.next().ok_or(Borrowed("Missing field #6 (passno)")));
+                let passno = try!(tokens.next().ok_or(LineError::MissingPassno));
                 match FromStr::from_str(passno) {
-                    Some(0) => None,
-                    Some(f) if f > 0 => Some(f),
-                    _ => return Err(Owned(format!("Bad field #6 (passno) value: {}", passno))),
+                    Ok(0) => None,
+                    Ok(f) if f > 0 => Some(f),
+                    _ => return Err(LineError::InvalidPassno(passno)),
                 }
             },
         })
@@ -150,9 +147,10 @@ impl fmt::Debug for Mount {
     }
 }
 
-impl FromStr for Mount {
-    fn from_str(line: &str) -> Option<Mount> {
-        Mount::from_str(line).ok()
+impl<'a> FromStr for Mount {
+    type Err = LineError<'a>;
+    fn from_str(line: &str) -> Result<Mount, LineError> {
+        Mount::from_str(line)
     }
 }
 
