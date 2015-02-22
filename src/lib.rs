@@ -21,47 +21,17 @@
 extern crate libc;
 
 use libc::c_int;
+use self::error::*;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::Ordering;
-use std::error::{Error, FromError};
 use std::fmt;
 use std::old_io::fs::File;
-use std::old_io::IoError;
 use std::str::FromStr;
 use std::string::CowString;
 
+mod error;
+
 const PROC_MOUNTS: &'static str = "/proc/mounts";
-
-pub struct ParseError {
-    desc: String,
-    // TODO: cause: Option<&'a (Error + 'a)>,
-}
-
-impl ParseError {
-    fn new(detail: String) -> ParseError {
-        ParseError {
-            desc: format!("Mount parsing: {}", detail),
-        }
-    }
-}
-
-impl Error for ParseError {
-    fn description(&self) -> &str {
-        self.desc.as_slice()
-    }
-}
-
-impl FromError<IoError> for ParseError {
-    fn from_error(err: IoError) -> ParseError {
-        ParseError::new(format!("Fail to read the mounts file: {}", err))
-    }
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
-        write!(out, "{}", self.description())
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DumpField {
