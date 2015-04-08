@@ -40,7 +40,7 @@ impl Error for ParseError {
 
 impl FromError<IoError> for ParseError {
     fn from_error(err: IoError) -> ParseError {
-        ParseError::new(format!("Fail to read the mounts file: {}", err))
+        ParseError::new(format!("Failed to read the mounts file: {}", err))
     }
 }
 

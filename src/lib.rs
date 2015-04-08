@@ -110,7 +110,7 @@ impl MountEntry {
                         ret.push(m);
                     }
                 },
-                Err(e) => return Err(ParseError::new(format!("Fail at line {}: {}", line_nb, e))),
+                Err(e) => return Err(ParseError::new(format!("Failed at line {}: {}", line_nb, e))),
             }
         }
         Ok(ret)
@@ -199,13 +199,13 @@ fn test_line_mntops() {
 fn test_file(path: &Path) -> Result<(), String> {
     let file = match File::open(path) {
         Ok(f) => f,
-        Err(e) => return Err(format!("Fail to open {}: {}", path.display(), e)),
+        Err(e) => return Err(format!("Failed to open {}: {}", path.display(), e)),
     };
     let mut mount = std::old_io::BufferedReader::new(file);
     for line in mount.lines() {
         let line = match line {
             Ok(l) => l,
-            Err(e) => return Err(format!("Fail to read line: {}", e)),
+            Err(e) => return Err(format!("Failed to read line: {}", e)),
         };
         match <MountEntry as FromStr>::from_str(line.as_slice()) {
             Ok(_) => {},
