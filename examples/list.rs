@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Mickaël Salaün
+// Copyright (C) 2014-2015 Mickaël Salaün
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -16,13 +16,13 @@
 
 extern crate mnt;
 
-use mnt::MountEntry;
+use mnt::{get_submounts, VecMountEntry};
 
 fn list_mounts() {
     let root = Path::new("/");
-    match MountEntry::get_mounts(&root) {
+    match get_submounts(&root) {
         Ok(list) => {
-            for mount in MountEntry::remove_overlaps(list, &vec!()).iter() {
+            for mount in list.remove_overlaps(&vec!()).iter() {
                 println!("* {:?}", mount);
             }
         },

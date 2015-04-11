@@ -99,25 +99,32 @@ impl<'a> FromStr for MountEntry {
     }
 }
 
-impl MountEntry {
-    pub fn get_mounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
-        let mut ret = vec!();
-        for mount in try!(MountIter::new_from_proc()) {
-            match mount {
-                Ok(m) => if root.is_ancestor_of(&m.file) {
-                    ret.push(m);
-                },
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(ret)
-    }
 
+/// Get a list of all mount points from `root` and beneath.
+pub fn get_submounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
+    let mut ret = vec!();
+    for mount in try!(MountIter::new_from_proc()) {
+        match mount {
+            Ok(m) => if root.is_ancestor_of(&m.file) {
+                ret.push(m);
+            },
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(ret)
+}
+
+
+pub trait VecMountEntry {
+    fn remove_overlaps(self, exclude_files: &Vec<&Path>) -> Self;
+}
+
+impl VecMountEntry for Vec<MountEntry> {
     // FIXME: Doesn't work for moved mounts: they don't change order
-    pub fn remove_overlaps(mounts: Vec<MountEntry>, exclude_files: &Vec<&Path>) -> Vec<MountEntry> {
+    fn remove_overlaps(self, exclude_files: &Vec<&Path>) -> Vec<MountEntry> {
         let mut sorted: Vec<MountEntry> = vec!();
         let root = Path::new("/");
-        'list: for mount in mounts.into_iter().rev() {
+        'list: for mount in self.into_iter().rev() {
             // Strip fake root mounts (created from bind mounts)
             if mount.file == root {
                 continue 'list;
@@ -141,6 +148,7 @@ impl MountEntry {
         sorted
     }
 }
+
 
 impl fmt::Debug for MountEntry {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
