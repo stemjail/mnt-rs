@@ -44,19 +44,56 @@ pub enum DumpField {
 
 pub type PassField = Option<c_int>;
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum MntOps {
+    Atime(bool),
+    DirAtime(bool),
+    RelAtime(bool),
+    Dev(bool),
+    Exec(bool),
+    Suid(bool),
+    Write(bool),
+    Extra(String),
+}
+
+impl<'a> FromStr for MntOps {
+    type Err = LineError<'a>;
+
+    fn from_str(token: &str) -> Result<MntOps, LineError> {
+        Ok(match token {
+            "atime" => MntOps::Atime(true),
+            "noatime" => MntOps::Atime(false),
+            "diratime" => MntOps::DirAtime(true),
+            "nodiratime" => MntOps::DirAtime(false),
+            "relatime" => MntOps::RelAtime(true),
+            "norelatime" => MntOps::RelAtime(false),
+            "dev" => MntOps::Dev(true),
+            "nodev" => MntOps::Dev(false),
+            "exec" => MntOps::Exec(true),
+            "noexec" => MntOps::Exec(false),
+            "suid" => MntOps::Suid(true),
+            "nosuid" => MntOps::Suid(false),
+            "rw" => MntOps::Write(true),
+            "ro" => MntOps::Write(false),
+            // TODO: Replace with &str
+            extra => MntOps::Extra(extra.to_string()),
+        })
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct MountEntry {
     pub spec: String,
     pub file: Path,
     pub vfstype: String,
-    // TODO: mntops: Vec<MntOps>
-    pub mntops: Vec<String>,
+    pub mntops: Vec<MntOps>,
     pub freq: DumpField,
     pub passno: PassField,
 }
 
 impl<'a> FromStr for MountEntry {
     type Err = LineError<'a>;
+
     fn from_str(line: &str) -> Result<MountEntry, LineError> {
         let line = line.trim();
         let mut tokens = line.split_terminator(|&: s: char| { s == ' ' || s == '\t' })
@@ -78,7 +115,8 @@ impl<'a> FromStr for MountEntry {
             },
             vfstype: try!(tokens.next().ok_or(LineError::MissingVfstype)).to_string(),
             mntops: try!(tokens.next().ok_or(LineError::MissingMntops))
-                .split_terminator(',').map(|x| { x.to_string() }).collect(),
+                // FIXME: Handle MntOps errors
+                .split_terminator(',').map(|x| { FromStr::from_str(x).unwrap() }).collect(),
             freq: {
                 let freq = try!(tokens.next().ok_or(LineError::MissingFreq));
                 match FromStr::from_str(freq) {
@@ -231,7 +269,7 @@ fn test_line_root() {
         spec: "rootfs".to_string(),
         file: Path::new("/"),
         vfstype: "rootfs".to_string(),
-        mntops: vec!("rw".to_string()),
+        mntops: vec!(MntOps::Write(true)),
         freq: DumpField::Ignore,
         passno: None,
     };
@@ -248,7 +286,7 @@ fn test_line_mntops() {
         spec: "rootfs".to_string(),
         file: Path::new("/"),
         vfstype: "rootfs".to_string(),
-        mntops: vec!("noexec".to_string(), "rw".to_string()),
+        mntops: vec!(MntOps::Exec(false), MntOps::Write(true)),
         freq: DumpField::Ignore,
         passno: None,
     };
