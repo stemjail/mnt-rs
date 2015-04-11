@@ -14,7 +14,8 @@
 
 #![feature(collections)]
 #![feature(core)]
-#![feature(old_io)]
+#![feature(fs)]
+#![feature(io)]
 #![feature(libc)]
 #![feature(old_path)]
 
@@ -24,7 +25,8 @@ use libc::c_int;
 use self::error::*;
 use std::cmp::Ordering;
 use std::fmt;
-use std::old_io::fs::File;
+use std::fs::File;
+use std::io::{BufReader, BufReadExt};
 use std::str::FromStr;
 
 mod error;
@@ -98,7 +100,7 @@ impl MountEntry {
     // TODO: Return an iterator with `iter_mounts()`
     pub fn get_mounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
         let file = try!(File::open(&Path::new(PROC_MOUNTS)));
-        let mut mount = std::old_io::BufferedReader::new(file);
+        let mount = BufReader::new(file);
         let mut ret = vec!();
         let mut line_nb = 0;
         for line in mount.lines() {
@@ -201,7 +203,7 @@ fn test_file(path: &Path) -> Result<(), String> {
         Ok(f) => f,
         Err(e) => return Err(format!("Failed to open {}: {}", path.display(), e)),
     };
-    let mut mount = std::old_io::BufferedReader::new(file);
+    let mount = BufReader::new(file);
     for line in mount.lines() {
         let line = match line {
             Ok(l) => l,

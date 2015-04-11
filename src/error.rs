@@ -17,7 +17,7 @@ extern crate collections;
 use self::collections::borrow::IntoCow;
 use std::error::{Error, FromError};
 use std::fmt;
-use std::old_io::IoError;
+use std::io;
 
 pub struct ParseError {
     desc: String,
@@ -38,8 +38,8 @@ impl Error for ParseError {
     }
 }
 
-impl FromError<IoError> for ParseError {
-    fn from_error(err: IoError) -> ParseError {
+impl FromError<io::Error> for ParseError {
+    fn from_error(err: io::Error) -> ParseError {
         ParseError::new(format!("Failed to read the mounts file: {}", err))
     }
 }
