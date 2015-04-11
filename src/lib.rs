@@ -152,16 +152,14 @@ pub fn get_submounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
     Ok(ret)
 }
 
-/// Get the mount point `target`.
+/// Get the mount point for the `target`
 pub fn get_mount(target: &Path) -> Result<Option<MountEntry>, ParseError> {
     let mut ret = None;
     for mount in try!(MountIter::new_from_proc()) {
         match mount {
-            Ok(m) => {
-                if *target == m.file {
-                    // Get the last entry
-                    ret = Some(m);
-                }
+            Ok(m) => if m.file.is_ancestor_of(&target) {
+                // Get the last entry
+                ret = Some(m);
             },
             Err(e) => return Err(e),
         }
