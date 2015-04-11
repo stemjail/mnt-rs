@@ -12,14 +12,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+#![feature(env)]
 #![feature(old_path)]
 
 extern crate mnt;
 
 use mnt::{get_submounts, VecMountEntry};
+use std::env::args;
 
-fn list_mounts() {
-    let root = Path::new("/");
+
+fn list_submounts(root: &Path) {
     match get_submounts(&root) {
         Ok(list) => {
             for mount in list.remove_overlaps(&vec!()).iter() {
@@ -31,5 +33,9 @@ fn list_mounts() {
 }
 
 fn main() {
-    list_mounts();
+    let root = match args().skip(1).next() {
+        Some(root) => Path::new(root),
+        None => Path::new("/"),
+    };
+    list_submounts(&root);
 }
