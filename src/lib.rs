@@ -24,9 +24,12 @@ extern crate libc;
 use libc::c_int;
 use self::error::*;
 use std::cmp::Ordering;
+use std::error::FromError;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, BufReadExt};
+use std::io;
+use std::io::{BufReader, BufReadExt, Lines};
+use std::iter::Enumerate;
 use std::str::FromStr;
 
 mod error;
@@ -97,22 +100,14 @@ impl<'a> FromStr for MountEntry {
 }
 
 impl MountEntry {
-    // TODO: Return an iterator with `iter_mounts()`
     pub fn get_mounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
-        let file = try!(File::open(&Path::new(PROC_MOUNTS)));
-        let mount = BufReader::new(file);
         let mut ret = vec!();
-        let mut line_nb = 0;
-        for line in mount.lines() {
-            let line = try!(line);
-            line_nb += 1;
-            match <MountEntry as FromStr>::from_str(line.as_slice()) {
-                Ok(m) => {
-                    if root.is_ancestor_of(&m.file) {
-                        ret.push(m);
-                    }
+        for mount in try!(MountIter::new_from_proc()) {
+            match mount {
+                Ok(m) => if root.is_ancestor_of(&m.file) {
+                    ret.push(m);
                 },
-                Err(e) => return Err(ParseError::new(format!("Failed at line {}: {}", line_nb, e))),
+                Err(e) => return Err(e),
             }
         }
         Ok(ret)
@@ -165,6 +160,45 @@ impl Ord for MountEntry {
         self.file.cmp(&other.file)
     }
 }
+
+
+struct MountIter<T> {
+    lines: Enumerate<Lines<T>>,
+}
+
+impl<T> MountIter<T> where T: BufReadExt {
+    pub fn new(mtab: T) -> MountIter<T> {
+        MountIter {
+            lines: mtab.lines().enumerate(),
+        }
+    }
+}
+
+impl MountIter<BufReader<File>> {
+    pub fn new_from_proc() -> Result<MountIter<BufReader<File>>, ParseError> {
+        let file = try!(File::open(&Path::new(PROC_MOUNTS)));
+        Ok(MountIter::new(BufReader::new(file)))
+    }
+}
+
+impl<T> Iterator for MountIter<T> where T: BufReadExt {
+    type Item = Result<MountEntry, ParseError>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        match self.lines.next() {
+            Some((nb, line)) => Some(match line {
+                Ok(line) => match <MountEntry as FromStr>::from_str(line.as_slice()) {
+                    Ok(m) => Ok(m),
+                    Err(e) => Err(ParseError::new(format!("Failed at line {}: {}", nb, e))),
+                },
+                // FIXME: Rust fail to infer error type
+                Err(e) => Err(<ParseError as FromError<io::Error>>::from_error(e)),
+            }),
+            None => None,
+        }
+    }
+}
+
 
 #[test]
 fn test_line_root() {
