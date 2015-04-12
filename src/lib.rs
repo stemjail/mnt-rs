@@ -27,7 +27,6 @@ use std::cmp::Ordering;
 use std::error::FromError;
 use std::fmt;
 use std::fs::File;
-use std::io;
 use std::io::{BufReader, BufReadExt, Lines};
 use std::iter::Enumerate;
 use std::str::FromStr;
@@ -252,8 +251,7 @@ impl<T> Iterator for MountIter<T> where T: BufReadExt {
                     Ok(m) => Ok(m),
                     Err(e) => Err(ParseError::new(format!("Failed at line {}: {}", nb, e))),
                 },
-                // FIXME: Rust fail to infer error type
-                Err(e) => Err(<ParseError as FromError<io::Error>>::from_error(e)),
+                Err(e) => Err(FromError::from_error(e)),
             }),
             None => None,
         }
