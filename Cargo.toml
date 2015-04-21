@@ -1,4 +1,4 @@
 [project]
 name = "mnt"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Mickaël Salaün <mickael.salaun@ssi.gouv.fr>"]

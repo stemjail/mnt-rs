@@ -12,13 +12,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(env)]
-#![feature(old_path)]
-
 extern crate mnt;
 
 use mnt::get_mount;
 use std::env::args;
+use std::path::{Path, PathBuf};
 
 
 fn list_mount(target: &Path) {
@@ -35,8 +33,8 @@ fn list_mount(target: &Path) {
 
 fn main() {
     let target = match args().skip(1).next() {
-        Some(target) => Path::new(target),
-        None => Path::new("/"),
+        Some(target) => PathBuf::from(target),
+        None => PathBuf::from("/"),
     };
     list_mount(&target);
 }

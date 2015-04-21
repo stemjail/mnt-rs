@@ -13,22 +13,19 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #![feature(collections)]
-#![feature(core)]
-#![feature(fs)]
-#![feature(io)]
 #![feature(libc)]
-#![feature(old_path)]
 
 extern crate libc;
 
 use libc::c_int;
 use self::error::*;
 use std::cmp::Ordering;
-use std::error::FromError;
+use std::convert::{AsRef, From};
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, BufReadExt, Lines};
+use std::io::{BufReader, BufRead, Lines};
 use std::iter::Enumerate;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 mod error;
@@ -83,7 +80,7 @@ impl<'a> FromStr for MntOps {
 #[derive(Clone, PartialEq, Eq)]
 pub struct MountEntry {
     pub spec: String,
-    pub file: Path,
+    pub file: PathBuf,
     pub vfstype: String,
     pub mntops: Vec<MntOps>,
     pub freq: DumpField,
@@ -95,22 +92,17 @@ impl<'a> FromStr for MountEntry {
 
     fn from_str(line: &str) -> Result<MountEntry, LineError> {
         let line = line.trim();
-        let mut tokens = line.split_terminator(|&: s: char| { s == ' ' || s == '\t' })
+        let mut tokens = line.split_terminator(|s: char| { s == ' ' || s == '\t' })
             .filter(|s| { s != &""  } );
         Ok(MountEntry {
             spec: try!(tokens.next().ok_or(LineError::MissingSpec)).to_string(),
             file: {
                 let file = try!(tokens.next().ok_or(LineError::MissingFile));
-                let path = Path::new_opt(file);
-                match path {
-                    Some(p) => {
-                        if p.is_relative() {
-                            return Err(LineError::InvalidFilePath(file));
-                        }
-                        p
-                    },
-                    _ => return Err(LineError::InvalidFile(file)),
+                let path = PathBuf::from(file);
+                if path.is_relative() {
+                    return Err(LineError::InvalidFilePath(file));
                 }
+                path
             },
             vfstype: try!(tokens.next().ok_or(LineError::MissingVfstype)).to_string(),
             mntops: try!(tokens.next().ok_or(LineError::MissingMntops))
@@ -138,11 +130,11 @@ impl<'a> FromStr for MountEntry {
 
 
 /// Get a list of all mount points from `root` and beneath.
-pub fn get_submounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
+pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> {
     let mut ret = vec!();
     for mount in try!(MountIter::new_from_proc()) {
         match mount {
-            Ok(m) => if root.is_ancestor_of(&m.file) {
+            Ok(m) => if m.file.starts_with(root) {
                 ret.push(m);
             },
             Err(e) => return Err(e),
@@ -152,11 +144,11 @@ pub fn get_submounts(root: &Path) -> Result<Vec<MountEntry>, ParseError> {
 }
 
 /// Get the mount point for the `target`
-pub fn get_mount(target: &Path) -> Result<Option<MountEntry>, ParseError> {
+pub fn get_mount(target: &AsRef<Path>) -> Result<Option<MountEntry>, ParseError> {
     let mut ret = None;
     for mount in try!(MountIter::new_from_proc()) {
         match mount {
-            Ok(m) => if m.file.is_ancestor_of(&target) {
+            Ok(m) => if target.as_ref().starts_with(&m.file) {
                 // Get the last entry
                 ret = Some(m);
             },
@@ -168,26 +160,27 @@ pub fn get_mount(target: &Path) -> Result<Option<MountEntry>, ParseError> {
 
 
 pub trait VecMountEntry {
-    fn remove_overlaps(self, exclude_files: &Vec<&Path>) -> Self;
+    fn remove_overlaps(self, exclude_files: &Vec<&AsRef<Path>>) -> Self;
 }
 
 impl VecMountEntry for Vec<MountEntry> {
     // FIXME: Doesn't work for moved mounts: they don't change order
-    fn remove_overlaps(self, exclude_files: &Vec<&Path>) -> Vec<MountEntry> {
+    fn remove_overlaps(self, exclude_files: &Vec<&AsRef<Path>>) -> Vec<MountEntry> {
         let mut sorted: Vec<MountEntry> = vec!();
         let root = Path::new("/");
         'list: for mount in self.into_iter().rev() {
             // Strip fake root mounts (created from bind mounts)
-            if mount.file == root {
+            if AsRef::<Path>::as_ref(&mount.file) == root {
                 continue 'list;
             }
             let mut has_overlaps = false;
             'filter: for mount_sorted in sorted.iter() {
-                if exclude_files.iter().skip_while(|&x| mount_sorted.file != **x).next().is_some() {
+                if exclude_files.iter().skip_while(|x|
+                       AsRef::<Path>::as_ref(&mount_sorted.file) != x.as_ref()).next().is_some() {
                     continue 'filter;
                 }
                 // Check for mount overlaps
-                if mount_sorted.file.is_ancestor_of(&mount.file) {
+                if mount.file.starts_with(&mount_sorted.file) {
                     has_overlaps = true;
                     break 'filter;
                 }
@@ -226,7 +219,7 @@ struct MountIter<T> {
     lines: Enumerate<Lines<T>>,
 }
 
-impl<T> MountIter<T> where T: BufReadExt {
+impl<T> MountIter<T> where T: BufRead {
     pub fn new(mtab: T) -> MountIter<T> {
         MountIter {
             lines: mtab.lines().enumerate(),
@@ -241,17 +234,17 @@ impl MountIter<BufReader<File>> {
     }
 }
 
-impl<T> Iterator for MountIter<T> where T: BufReadExt {
+impl<T> Iterator for MountIter<T> where T: BufRead {
     type Item = Result<MountEntry, ParseError>;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
         match self.lines.next() {
             Some((nb, line)) => Some(match line {
-                Ok(line) => match <MountEntry as FromStr>::from_str(line.as_slice()) {
+                Ok(line) => match <MountEntry as FromStr>::from_str(line.as_ref()) {
                     Ok(m) => Ok(m),
                     Err(e) => Err(ParseError::new(format!("Failed at line {}: {}", nb, e))),
                 },
-                Err(e) => Err(FromError::from_error(e)),
+                Err(e) => Err(From::from(e)),
             }),
             None => None,
         }
@@ -263,7 +256,7 @@ impl<T> Iterator for MountIter<T> where T: BufReadExt {
 fn test_line_root() {
     let root_ref = MountEntry {
         spec: "rootfs".to_string(),
-        file: Path::new("/"),
+        file: PathBuf::from("/"),
         vfstype: "rootfs".to_string(),
         mntops: vec!(MntOps::Write(true)),
         freq: DumpField::Ignore,
@@ -280,7 +273,7 @@ fn test_line_root() {
 fn test_line_mntops() {
     let root_ref = MountEntry {
         spec: "rootfs".to_string(),
-        file: Path::new("/"),
+        file: PathBuf::from("/"),
         vfstype: "rootfs".to_string(),
         mntops: vec!(MntOps::Exec(false), MntOps::Write(true)),
         freq: DumpField::Ignore,
@@ -302,7 +295,7 @@ fn test_file(path: &Path) -> Result<(), String> {
             Ok(l) => l,
             Err(e) => return Err(format!("Failed to read line: {}", e)),
         };
-        match <MountEntry as FromStr>::from_str(line.as_slice()) {
+        match <MountEntry as FromStr>::from_str(line.as_ref()) {
             Ok(_) => {},
             Err(e) => return Err(format!("Error for `{}`: {}", line.trim(), e)),
         }

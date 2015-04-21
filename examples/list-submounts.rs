@@ -12,13 +12,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-#![feature(env)]
-#![feature(old_path)]
-
 extern crate mnt;
 
 use mnt::{get_submounts, VecMountEntry};
 use std::env::args;
+use std::path::{Path, PathBuf};
 
 
 fn list_submounts(root: &Path) {
@@ -34,8 +32,8 @@ fn list_submounts(root: &Path) {
 
 fn main() {
     let root = match args().skip(1).next() {
-        Some(root) => Path::new(root),
-        None => Path::new("/"),
+        Some(root) => PathBuf::from(root),
+        None => PathBuf::from("/"),
     };
     list_submounts(&root);
 }

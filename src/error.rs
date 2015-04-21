@@ -14,11 +14,12 @@
 
 extern crate collections;
 
-use self::collections::borrow::IntoCow;
-use std::error::{Error, FromError};
+use std::borrow::Cow;
+use std::error::Error;
 use std::fmt;
 use std::io;
 
+#[derive(Debug)]
 pub struct ParseError {
     desc: String,
     // TODO: cause: Option<&'a (Error + 'a)>,
@@ -34,12 +35,12 @@ impl ParseError {
 
 impl Error for ParseError {
     fn description(&self) -> &str {
-        self.desc.as_slice()
+        self.desc.as_ref()
     }
 }
 
-impl FromError<io::Error> for ParseError {
-    fn from_error(err: io::Error) -> ParseError {
+impl From<io::Error> for ParseError {
+    fn from(err: io::Error) -> ParseError {
         ParseError::new(format!("Failed to read the mounts file: {}", err))
     }
 }
@@ -66,17 +67,17 @@ pub enum LineError<'a> {
 
 impl<'a> fmt::Display for LineError<'a> {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
-        let desc = match *self {
-            LineError::MissingSpec => "Missing field #1 (spec)".into_cow(),
-            LineError::MissingFile => "Missing field #2 (file)".into_cow(),
-            LineError::InvalidFilePath(ref f) => format!("Bad field #2 (file) value (not absolute path): {}", f).into_cow(),
-            LineError::InvalidFile(ref f) => format!("Bad field #2 (file) value: {}", f).into_cow(),
-            LineError::MissingVfstype => "Missing field #3 (vfstype)".into_cow(),
-            LineError::MissingMntops => "Missing field #4 (mntops)".into_cow(),
-            LineError::MissingFreq => "Missing field #5 (freq)".into_cow(),
-            LineError::InvalidFreq(ref f) => format!("Bad field #5 (dump) value: {}", f).into_cow(),
-            LineError::MissingPassno => "Missing field #6 (passno)".into_cow(),
-            LineError::InvalidPassno(ref f) => format!("Bad field #6 (passno) value: {}", f).into_cow(),
+        let desc: Cow<_> = match *self {
+            LineError::MissingSpec => "Missing field #1 (spec)".into(),
+            LineError::MissingFile => "Missing field #2 (file)".into(),
+            LineError::InvalidFilePath(ref f) => format!("Bad field #2 (file) value (not absolute path): {}", f).into(),
+            LineError::InvalidFile(ref f) => format!("Bad field #2 (file) value: {}", f).into(),
+            LineError::MissingVfstype => "Missing field #3 (vfstype)".into(),
+            LineError::MissingMntops => "Missing field #4 (mntops)".into(),
+            LineError::MissingFreq => "Missing field #5 (freq)".into(),
+            LineError::InvalidFreq(ref f) => format!("Bad field #5 (dump) value: {}", f).into(),
+            LineError::MissingPassno => "Missing field #6 (passno)".into(),
+            LineError::InvalidPassno(ref f) => format!("Bad field #6 (passno) value: {}", f).into(),
         };
         write!(out, "Line parsing: {}", desc)
     }
