@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 fn list_submounts(root: &Path) {
     match get_submounts(&root) {
         Ok(list) => {
-            for mount in list.remove_overlaps(&vec!()).iter() {
+            for mount in list.remove_overlaps(&Vec::<&Path>::new()).iter() {
                 println!("* {:?}", mount);
             }
         },

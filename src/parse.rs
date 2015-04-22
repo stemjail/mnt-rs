@@ -125,12 +125,12 @@ impl<'a> FromStr for MountEntry {
 
 
 /// Get a list of all mount points from `root` and beneath using a custom `BufRead`
-pub fn get_submounts_from<T>(root: &AsRef<Path>, iter: MountIter<T>)
-        -> Result<Vec<MountEntry>, ParseError> where T: BufRead {
+pub fn get_submounts_from<T, U>(root: T, iter: MountIter<U>)
+        -> Result<Vec<MountEntry>, ParseError> where T: AsRef<Path>, U: BufRead {
     let mut ret = vec!();
     for mount in iter {
         match mount {
-            Ok(m) => if m.file.starts_with(root) {
+            Ok(m) => if m.file.starts_with(&root) {
                 ret.push(m);
             },
             Err(e) => return Err(e),
@@ -140,13 +140,13 @@ pub fn get_submounts_from<T>(root: &AsRef<Path>, iter: MountIter<T>)
 }
 
 /// Get a list of all mount points from `root` and beneath using */proc/mounts*
-pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> {
+pub fn get_submounts<T>(root: T) -> Result<Vec<MountEntry>, ParseError> where T: AsRef<Path> {
     get_submounts_from(root, try!(MountIter::new_from_proc()))
 }
 
 /// Get the mount point for the `target` using a custom `BufRead`
-pub fn get_mount_from<T>(target: &AsRef<Path>, iter: MountIter<T>)
-        -> Result<Option<MountEntry>, ParseError> where T: BufRead {
+pub fn get_mount_from<T, U>(target: T, iter: MountIter<U>)
+        -> Result<Option<MountEntry>, ParseError> where T: AsRef<Path>, U: BufRead {
     let mut ret = None;
     for mount in iter {
         match mount {
@@ -161,18 +161,18 @@ pub fn get_mount_from<T>(target: &AsRef<Path>, iter: MountIter<T>)
 }
 
 /// Get the mount point for the `target` using */proc/mounts*
-pub fn get_mount(target: &AsRef<Path>) -> Result<Option<MountEntry>, ParseError> {
+pub fn get_mount<T>(target: T) -> Result<Option<MountEntry>, ParseError> where T: AsRef<Path> {
     get_mount_from(target, try!(MountIter::new_from_proc()))
 }
 
 
 pub trait VecMountEntry {
-    fn remove_overlaps(self, exclude_files: &Vec<&AsRef<Path>>) -> Self;
+    fn remove_overlaps<T>(self, exclude_files: &Vec<T>) -> Self where T: AsRef<Path>;
 }
 
 impl VecMountEntry for Vec<MountEntry> {
     // FIXME: Doesn't work for moved mounts: they don't change order
-    fn remove_overlaps(self, exclude_files: &Vec<&AsRef<Path>>) -> Vec<MountEntry> {
+    fn remove_overlaps<T>(self, exclude_files: &Vec<T>) -> Vec<MountEntry> where T: AsRef<Path> {
         let mut sorted: Vec<MountEntry> = vec!();
         let root = Path::new("/");
         'list: for mount in self.into_iter().rev() {
@@ -236,7 +236,7 @@ impl<T> MountIter<T> where T: BufRead {
 
 impl MountIter<BufReader<File>> {
     pub fn new_from_proc() -> Result<MountIter<BufReader<File>>, ParseError> {
-        let file = try!(File::open(&Path::new(PROC_MOUNTS)));
+        let file = try!(File::open(PROC_MOUNTS));
         Ok(MountIter::new(BufReader::new(file)))
     }
 }
@@ -298,10 +298,10 @@ mod test {
         assert_eq!(from_str("rootfs / rootfs noexec,rw 0 0"), Ok(root_ref.clone()));
     }
 
-    fn test_file(path: &Path) -> Result<(), String> {
-        let file = match File::open(path) {
+    fn test_file<T>(path: T) -> Result<(), String> where T: AsRef<Path> {
+        let file = match File::open(&path) {
             Ok(f) => f,
-            Err(e) => return Err(format!("Failed to open {}: {}", path.display(), e)),
+            Err(e) => return Err(format!("Failed to open {}: {}", path.as_ref().display(), e)),
         };
         let mount = BufReader::new(file);
         for line in mount.lines() {
@@ -319,7 +319,7 @@ mod test {
 
     #[test]
     fn test_proc_mounts() {
-        assert!(test_file(&Path::new("/proc/mounts")).is_ok());
+        assert!(test_file("/proc/mounts").is_ok());
     }
 
     #[test]
@@ -400,12 +400,12 @@ mod test {
         let mounts = MountIter::new(buf.clone());
         assert_eq!(mounts.map(|x| x.unwrap() ).collect::<Vec<_>>(), mounts_all);
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_submounts_from(&PathBuf::from("/"), mounts).ok(), Some(mounts_all));
+        assert_eq!(get_submounts_from("/", mounts).ok(), Some(mounts_all));
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_submounts_from(&PathBuf::from("/var/tmp"), mounts).ok(), Some(vec!(mount_vartmp.clone())));
+        assert_eq!(get_submounts_from("/var/tmp", mounts).ok(), Some(vec!(mount_vartmp.clone())));
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_from(&PathBuf::from("/var/tmp/bar"), mounts).ok(), Some(Some(mount_vartmp.clone())));
+        assert_eq!(get_mount_from("/var/tmp/bar", mounts).ok(), Some(Some(mount_vartmp.clone())));
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_from(&PathBuf::from("/var/"), mounts).ok(), Some(Some(mount_root)));
+        assert_eq!(get_mount_from("/var/", mounts).ok(), Some(Some(mount_root)));
     }
 }
