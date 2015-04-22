@@ -262,10 +262,10 @@ impl<T> Iterator for MountIter<T> where T: BufRead {
 #[cfg(test)]
 mod test {
     use std::fs::File;
-    use std::io::{BufReader, BufRead};
+    use std::io::{BufReader, BufRead, Cursor};
     use std::path::{Path, PathBuf};
     use std::str::FromStr;
-    use super::{DumpField, MountEntry, MntOps};
+    use super::{DumpField, MountEntry, MountIter, MntOps, get_mount_from, get_submounts_from};
 
     #[test]
     fn test_line_root() {
@@ -329,5 +329,83 @@ mod test {
         assert!(from_str("rootfs foo rootfs rw 0 0").is_err());
         // Should fail for a swap pseudo-mount
         assert!(from_str("/dev/mapper/swap none swap sw 0 0").is_err());
+    }
+
+    #[test]
+    fn test_proc_mounts_from() {
+        use super::MntOps::*;
+        use super::DumpField::*;
+
+        let buf = Cursor::new(b"\
+            rootfs / rootfs rw 0 0\n\
+            sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0\n\
+            tmpfs /sys/fs/cgroup tmpfs ro,nosuid,nodev,noexec,mode=755 0 0\n\
+            udev /dev devtmpfs rw,relatime,size=10240k,nr_inodes=505357,mode=755 0 0\n\
+            tmpfs /run tmpfs rw,nosuid,relatime,size=809928k,mode=755 0 0\n\
+            /dev/mapper/foo-tmp /var/tmp ext4 rw,relatime,data=ordered 0 0\n\
+        ".as_ref());
+        // FIXME: Append /dev/dm-0 / ext4 rw,relatime,errors=remount-ro,data=ordered 0 0\n\
+        let mount_vartmp = MountEntry {
+            spec: "/dev/mapper/foo-tmp".to_string(),
+            file: PathBuf::from("/var/tmp"),
+            vfstype: "ext4".to_string(),
+            mntops: vec![Write(true), RelAtime(true), Extra("data=ordered".to_string())],
+            freq: Ignore,
+            passno: None
+        };
+        let mount_root = MountEntry {
+            spec: "rootfs".to_string(),
+            file: PathBuf::from("/"),
+            vfstype: "rootfs".to_string(),
+            mntops: vec![Write(true)],
+            freq: Ignore,
+            passno: None
+        };
+        let mounts_all = vec!(
+            mount_root.clone(),
+            MountEntry {
+                spec: "sysfs".to_string(),
+                file: PathBuf::from("/sys"),
+                vfstype: "sysfs".to_string(),
+                mntops: vec![Write(true), Suid(false), Dev(false), Exec(false), RelAtime(true)],
+                freq: Ignore,
+                passno: None
+            },
+            MountEntry {
+                spec: "tmpfs".to_string(),
+                file: PathBuf::from("/sys/fs/cgroup"),
+                vfstype: "tmpfs".to_string(),
+                mntops: vec![Write(false), Suid(false), Dev(false), Exec(false), Extra("mode=755".to_string())],
+                freq: Ignore,
+                passno: None
+            },
+            MountEntry {
+                spec: "udev".to_string(),
+                file: PathBuf::from("/dev"),
+                vfstype: "devtmpfs".to_string(),
+                mntops: vec![Write(true), RelAtime(true), Extra("size=10240k".to_string()), Extra("nr_inodes=505357".to_string()), Extra("mode=755".to_string())],
+                freq: Ignore,
+                passno: None
+            },
+            MountEntry {
+                spec: "tmpfs".to_string(),
+                file: PathBuf::from("/run"),
+                vfstype: "tmpfs".to_string(),
+                mntops: vec![Write(true), Suid(false), RelAtime(true), Extra("size=809928k".to_string()), Extra("mode=755".to_string())],
+                freq: Ignore,
+                passno: None
+            },
+            mount_vartmp.clone()
+        );
+        let mounts = MountIter::new(buf.clone());
+        assert_eq!(mounts.map(|x| x.unwrap() ).collect::<Vec<_>>(), mounts_all);
+        let mounts = MountIter::new(buf.clone());
+        assert_eq!(get_submounts_from(&PathBuf::from("/"), mounts).ok(), Some(mounts_all));
+        let mounts = MountIter::new(buf.clone());
+        assert_eq!(get_submounts_from(&PathBuf::from("/var/tmp"), mounts).ok(), Some(vec!(mount_vartmp.clone())));
+        let mounts = MountIter::new(buf.clone());
+        assert_eq!(get_mount_from(&PathBuf::from("/var/tmp/bar"), mounts).ok(), Some(Some(mount_vartmp.clone())));
+        let mounts = MountIter::new(buf.clone());
+        assert_eq!(get_mount_from(&PathBuf::from("/var/"), mounts).ok(), Some(Some(mount_root)));
     }
 }
