@@ -247,67 +247,75 @@ impl<T> Iterator for MountIter<T> where T: BufRead {
 }
 
 
-#[test]
-fn test_line_root() {
-    let root_ref = MountEntry {
-        spec: "rootfs".to_string(),
-        file: PathBuf::from("/"),
-        vfstype: "rootfs".to_string(),
-        mntops: vec!(MntOps::Write(true)),
-        freq: DumpField::Ignore,
-        passno: None,
-    };
-    let from_str = <MountEntry as FromStr>::from_str;
-    assert_eq!(from_str("rootfs / rootfs rw 0 0"), Ok(root_ref.clone()));
-    assert_eq!(from_str("rootfs   / rootfs rw 0 0"), Ok(root_ref.clone()));
-    assert_eq!(from_str("rootfs	/ rootfs rw 0 0"), Ok(root_ref.clone()));
-    assert_eq!(from_str("rootfs / rootfs rw, 0 0"), Ok(root_ref.clone()));
-}
-
-#[test]
-fn test_line_mntops() {
-    let root_ref = MountEntry {
-        spec: "rootfs".to_string(),
-        file: PathBuf::from("/"),
-        vfstype: "rootfs".to_string(),
-        mntops: vec!(MntOps::Exec(false), MntOps::Write(true)),
-        freq: DumpField::Ignore,
-        passno: None,
-    };
-    let from_str = <MountEntry as FromStr>::from_str;
-    assert_eq!(from_str("rootfs / rootfs noexec,rw 0 0"), Ok(root_ref.clone()));
-}
-
 #[cfg(test)]
-fn test_file(path: &Path) -> Result<(), String> {
-    let file = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => return Err(format!("Failed to open {}: {}", path.display(), e)),
-    };
-    let mount = BufReader::new(file);
-    for line in mount.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(e) => return Err(format!("Failed to read line: {}", e)),
+mod test {
+    use std::fs::File;
+    use std::io::{BufReader, BufRead};
+    use std::path::{Path, PathBuf};
+    use std::str::FromStr;
+    use super::{DumpField, MountEntry, MntOps};
+
+    #[test]
+    fn test_line_root() {
+        let root_ref = MountEntry {
+            spec: "rootfs".to_string(),
+            file: PathBuf::from("/"),
+            vfstype: "rootfs".to_string(),
+            mntops: vec!(MntOps::Write(true)),
+            freq: DumpField::Ignore,
+            passno: None,
         };
-        match <MountEntry as FromStr>::from_str(line.as_ref()) {
-            Ok(_) => {},
-            Err(e) => return Err(format!("Error for `{}`: {}", line.trim(), e)),
-        }
+        let from_str = <MountEntry as FromStr>::from_str;
+        assert_eq!(from_str("rootfs / rootfs rw 0 0"), Ok(root_ref.clone()));
+        assert_eq!(from_str("rootfs   / rootfs rw 0 0"), Ok(root_ref.clone()));
+        assert_eq!(from_str("rootfs	/ rootfs rw 0 0"), Ok(root_ref.clone()));
+        assert_eq!(from_str("rootfs / rootfs rw, 0 0"), Ok(root_ref.clone()));
     }
-    Ok(())
-}
 
-#[test]
-fn test_proc_mounts() {
-    assert!(test_file(&Path::new("/proc/mounts")).is_ok());
-}
+    #[test]
+    fn test_line_mntops() {
+        let root_ref = MountEntry {
+            spec: "rootfs".to_string(),
+            file: PathBuf::from("/"),
+            vfstype: "rootfs".to_string(),
+            mntops: vec!(MntOps::Exec(false), MntOps::Write(true)),
+            freq: DumpField::Ignore,
+            passno: None,
+        };
+        let from_str = <MountEntry as FromStr>::from_str;
+        assert_eq!(from_str("rootfs / rootfs noexec,rw 0 0"), Ok(root_ref.clone()));
+    }
 
-#[test]
-fn test_path() {
-    let from_str = <MountEntry as FromStr>::from_str;
-    assert!(from_str("rootfs ./ rootfs rw 0 0").is_err());
-    assert!(from_str("rootfs foo rootfs rw 0 0").is_err());
-    // Should fail for a swap pseudo-mount
-    assert!(from_str("/dev/mapper/swap none swap sw 0 0").is_err());
+    fn test_file(path: &Path) -> Result<(), String> {
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(e) => return Err(format!("Failed to open {}: {}", path.display(), e)),
+        };
+        let mount = BufReader::new(file);
+        for line in mount.lines() {
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => return Err(format!("Failed to read line: {}", e)),
+            };
+            match <MountEntry as FromStr>::from_str(line.as_ref()) {
+                Ok(_) => {},
+                Err(e) => return Err(format!("Error for `{}`: {}", line.trim(), e)),
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_proc_mounts() {
+        assert!(test_file(&Path::new("/proc/mounts")).is_ok());
+    }
+
+    #[test]
+    fn test_path() {
+        let from_str = <MountEntry as FromStr>::from_str;
+        assert!(from_str("rootfs ./ rootfs rw 0 0").is_err());
+        assert!(from_str("rootfs foo rootfs rw 0 0").is_err());
+        // Should fail for a swap pseudo-mount
+        assert!(from_str("/dev/mapper/swap none swap sw 0 0").is_err());
+    }
 }
