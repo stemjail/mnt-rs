@@ -144,10 +144,11 @@ pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> 
     get_submounts_from(root, try!(MountIter::new_from_proc()))
 }
 
-/// Get the mount point for the `target`
-pub fn get_mount(target: &AsRef<Path>) -> Result<Option<MountEntry>, ParseError> {
+/// Get the mount point for the `target` using a custom `BufRead`
+pub fn get_mount_from<T>(target: &AsRef<Path>, iter: MountIter<T>)
+        -> Result<Option<MountEntry>, ParseError> where T: BufRead {
     let mut ret = None;
-    for mount in try!(MountIter::new_from_proc()) {
+    for mount in iter {
         match mount {
             Ok(m) => if target.as_ref().starts_with(&m.file) {
                 // Get the last entry
@@ -157,6 +158,11 @@ pub fn get_mount(target: &AsRef<Path>) -> Result<Option<MountEntry>, ParseError>
         }
     }
     Ok(ret)
+}
+
+/// Get the mount point for the `target` using */proc/mounts*
+pub fn get_mount(target: &AsRef<Path>) -> Result<Option<MountEntry>, ParseError> {
+    get_mount_from(target, try!(MountIter::new_from_proc()))
 }
 
 
