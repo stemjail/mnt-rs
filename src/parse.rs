@@ -124,10 +124,11 @@ impl<'a> FromStr for MountEntry {
 }
 
 
-/// Get a list of all mount points from `root` and beneath.
-pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> {
+/// Get a list of all mount points from `root` and beneath using a custom `BufRead`
+pub fn get_submounts_from<T>(root: &AsRef<Path>, iter: MountIter<T>)
+        -> Result<Vec<MountEntry>, ParseError> where T: BufRead {
     let mut ret = vec!();
-    for mount in try!(MountIter::new_from_proc()) {
+    for mount in iter {
         match mount {
             Ok(m) => if m.file.starts_with(root) {
                 ret.push(m);
@@ -136,6 +137,11 @@ pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> 
         }
     }
     Ok(ret)
+}
+
+/// Get a list of all mount points from `root` and beneath using */proc/mounts*
+pub fn get_submounts(root: &AsRef<Path>) -> Result<Vec<MountEntry>, ParseError> {
+    get_submounts_from(root, try!(MountIter::new_from_proc()))
 }
 
 /// Get the mount point for the `target`
@@ -210,7 +216,7 @@ impl Ord for MountEntry {
 }
 
 
-struct MountIter<T> {
+pub struct MountIter<T> {
     lines: Enumerate<Lines<T>>,
 }
 
