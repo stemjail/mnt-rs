@@ -192,7 +192,7 @@ impl VecMountEntry for Vec<MountEntry> {
 
 impl fmt::Debug for MountEntry {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
-        write!(out, "MountEntry {{ spec: {:?}, file: {:?} vfstype: {:?} mntops: {:?}, freq: {:?}, passno: {:?} }}",
+        write!(out, "MountEntry {{ spec: {:?}, file: {:?}, vfstype: {:?}, mntops: {:?}, freq: {:?}, passno: {:?} }}",
                self.spec, self.file.display(), self.vfstype, self.mntops, self.freq, self.passno)
     }
 }
