@@ -47,8 +47,8 @@ pub enum MntOps {
     Extra(String),
 }
 
-impl<'a> FromStr for MntOps {
-    type Err = LineError<'a>;
+impl FromStr for MntOps {
+    type Err = LineError;
 
     fn from_str(token: &str) -> Result<MntOps, LineError> {
         Ok(match token {
@@ -82,8 +82,8 @@ pub struct MountEntry {
     pub passno: PassField,
 }
 
-impl<'a> FromStr for MountEntry {
-    type Err = LineError<'a>;
+impl FromStr for MountEntry {
+    type Err = LineError;
 
     fn from_str(line: &str) -> Result<MountEntry, LineError> {
         let line = line.trim();
@@ -95,7 +95,7 @@ impl<'a> FromStr for MountEntry {
                 let file = try!(tokens.next().ok_or(LineError::MissingFile));
                 let path = PathBuf::from(file);
                 if path.is_relative() {
-                    return Err(LineError::InvalidFilePath(file));
+                    return Err(LineError::InvalidFilePath(file.into()));
                 }
                 path
             },
@@ -108,7 +108,7 @@ impl<'a> FromStr for MountEntry {
                 match FromStr::from_str(freq) {
                     Ok(0) => DumpField::Ignore,
                     Ok(1) => DumpField::Backup,
-                    _ => return Err(LineError::InvalidFreq(freq)),
+                    _ => return Err(LineError::InvalidFreq(freq.into())),
                 }
             },
             passno: {
@@ -116,7 +116,7 @@ impl<'a> FromStr for MountEntry {
                 match FromStr::from_str(passno) {
                     Ok(0) => None,
                     Ok(f) if f > 0 => Some(f),
-                    _ => return Err(LineError::InvalidPassno(passno)),
+                    _ => return Err(LineError::InvalidPassno(passno.into())),
                 }
             },
         })

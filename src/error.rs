@@ -52,20 +52,20 @@ impl fmt::Display for ParseError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LineError<'a> {
+pub enum LineError {
     MissingSpec,
     MissingFile,
-    InvalidFilePath(&'a str),
-    InvalidFile(&'a str),
+    InvalidFilePath(String),
+    InvalidFile(String),
     MissingVfstype,
     MissingMntops,
     MissingFreq,
-    InvalidFreq(&'a str),
+    InvalidFreq(String),
     MissingPassno,
-    InvalidPassno(&'a str),
+    InvalidPassno(String),
 }
 
-impl<'a> fmt::Display for LineError<'a> {
+impl fmt::Display for LineError {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         let desc: Cow<_> = match *self {
             LineError::MissingSpec => "Missing field #1 (spec)".into(),
