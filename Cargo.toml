@@ -8,3 +8,6 @@ readme = "README.md"
 keywords = ["linux"]
 license = "LGPL-3.0"
 exclude = [".gitignore"]
+
+[dependencies]
+libc = "*"
