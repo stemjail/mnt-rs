@@ -165,6 +165,21 @@ pub fn get_mount<T>(target: T) -> Result<Option<MountEntry>, ParseError> where T
     get_mount_from(target, try!(MountIter::new_from_proc()))
 }
 
+/// Find the potential mount point providing readable or writable access to a path
+///
+/// Do not check the path existence but its potentially parent mount point.
+pub fn get_mount_writable<T>(target: T, writable: bool) -> Option<MountEntry> where T: AsRef<Path> {
+    match get_mount(target) {
+        Ok(Some(m)) => {
+            if !writable || m.mntops.contains(&MntOps::Write(writable)) {
+                Some(m)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
 
 pub trait VecMountEntry {
     fn remove_overlaps<T>(self, exclude_files: &Vec<T>) -> Self where T: AsRef<Path>;
