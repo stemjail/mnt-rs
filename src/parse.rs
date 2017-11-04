@@ -77,10 +77,10 @@ impl FromStr for MntOps {
 pub enum Search {
     Spec(String),
     File(PathBuf),
-    Vfstype(String),
-    Mntopts(Vec<MntOps>),
+    VfsType(String),
+    MntOps(Vec<MntOps>),
     Freq(DumpField),
-    Passno(PassField),
+    PassNo(PassField),
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -98,15 +98,15 @@ impl MountEntry {
         match search {
             &Search::Spec(ref spec) => spec == &self.spec,
             &Search::File(ref file) => file == &self.file,
-            &Search::Vfstype(ref vfstype) => vfstype == &self.vfstype,
-            &Search::Mntopts(ref mntops) => {
+            &Search::VfsType(ref vfstype) => vfstype == &self.vfstype,
+            &Search::MntOps(ref mntops) => {
                 // All the opts must be present for a match
                 let current_ops: HashSet<_> = self.mntops.iter().cloned().collect();
                 let requested_ops: HashSet<_> = mntops.iter().cloned().collect();
                 return current_ops.is_superset(&requested_ops);
             },
             &Search::Freq(ref dumpfield) => dumpfield == &self.freq,
-            &Search::Passno(ref passno) => passno == &self.passno,
+            &Search::PassNo(ref passno) => passno == &self.passno,
         }
     }
 }
@@ -497,15 +497,15 @@ mod test {
         let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_search_from(&Search::File(PathBuf::from("/")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_root.clone());
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::Vfstype(String::from("tmpfs")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_tmp.clone());
+        assert_eq!(get_mount_search_from(&Search::VfsType(String::from("tmpfs")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_tmp.clone());
         let mounts = MountIter::new(buf.clone());
         let mnt_ops = vec![MntOps::Write(true), MntOps::Suid(false), MntOps::Dev(false), MntOps::Exec(false)];
-        assert_eq!(get_mount_search_from(&Search::Mntopts(mnt_ops), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_sysfs.clone());
+        assert_eq!(get_mount_search_from(&Search::MntOps(mnt_ops), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_sysfs.clone());
         let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_search_from(&Search::Freq(DumpField::Ignore), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
         let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_search_from(&Search::Freq(DumpField::Ignore), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::Passno(None), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
+        assert_eq!(get_mount_search_from(&Search::PassNo(None), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
     }
 }
