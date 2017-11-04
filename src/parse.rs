@@ -93,6 +93,24 @@ pub struct MountEntry {
     pub passno: PassField,
 }
 
+impl MountEntry {
+    pub fn contains(&self, search: &Search) -> bool {
+        match search {
+            &Search::Spec(ref spec) => spec == &self.spec,
+            &Search::File(ref file) => file == &self.file,
+            &Search::Vfstype(ref vfstype) => vfstype == &self.vfstype,
+            &Search::Mntopts(ref mntops) => {
+                // All the opts must be present for a match
+                let current_ops: HashSet<_> = self.mntops.iter().cloned().collect();
+                let requested_ops: HashSet<_> = mntops.iter().cloned().collect();
+                return current_ops.is_superset(&requested_ops);
+            },
+            &Search::Freq(ref dumpfield) => dumpfield == &self.freq,
+            &Search::Passno(ref passno) => passno == &self.passno,
+        }
+    }
+}
+
 impl FromStr for MountEntry {
     type Err = LineError;
 
@@ -287,44 +305,6 @@ impl MountIter<BufReader<File>> {
     }
 }
 
-fn matches(m: &MountEntry, search: &Search) -> bool {
-    match *search {
-        Search::Spec(ref spec) => {
-            if *spec == m.spec {
-                return true;
-            }
-        },
-        Search::File(ref file) => {
-            if *file == m.file {
-                return true;
-            }
-        },
-        Search::Vfstype(ref vfstype) => {
-            if *vfstype == m.vfstype {
-                return true;
-            }
-        },
-        Search::Mntopts(ref mntops) => {
-            // All the opts must be present for a match
-            let current_ops: HashSet<_> = m.mntops.iter().cloned().collect();
-            let requested_ops: HashSet<_> = mntops.iter().cloned().collect();
-            return current_ops.is_superset(&requested_ops);
-        },
-        Search::Freq(ref dumpfield) => {
-            if *dumpfield == m.freq {
-                return true;
-            }
-        },
-        Search::Passno(ref passno) => {
-            if *passno == m.passno {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-
 impl<T> Iterator for MountIter<T> where T: BufRead {
     type Item = Result<MountEntry, ParseError>;
 
@@ -335,7 +315,7 @@ impl<T> Iterator for MountIter<T> where T: BufRead {
                     Ok(line) => match <MountEntry as FromStr>::from_str(line.as_ref()) {
                         Ok(m) => {
                             if let Some(ref s) = self.search {
-                                if matches(&m, &s ) {
+                                if m.contains(&s) {
                                     return Some(Ok(m));
                                 } else {
                                     continue;
