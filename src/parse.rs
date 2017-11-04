@@ -504,8 +504,6 @@ mod test {
         let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_search_from(&Search::Freq(DumpField::Ignore), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
         let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::Freq(DumpField::Ignore), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
-        let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_search_from(&Search::PassNo(None), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
     }
 }
