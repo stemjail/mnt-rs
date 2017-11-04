@@ -73,13 +73,13 @@ impl FromStr for MntOps {
 }
 
 #[derive(Clone, Debug)]
-pub enum Search {
-    Spec(String),
-    File(PathBuf),
-    VfsType(String),
-    MntOps(MntOps),
-    Freq(DumpField),
-    PassNo(PassField),
+pub enum MountParam<'a> {
+    Spec(&'a str),
+    File(&'a Path),
+    VfsType(&'a str),
+    MntOps(&'a MntOps),
+    Freq(&'a DumpField),
+    PassNo(&'a PassField),
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -93,14 +93,14 @@ pub struct MountEntry {
 }
 
 impl MountEntry {
-    pub fn contains(&self, search: &Search) -> bool {
+    pub fn contains(&self, search: &MountParam) -> bool {
         match search {
-            &Search::Spec(ref spec) => spec == &self.spec,
-            &Search::File(ref file) => file == &self.file,
-            &Search::VfsType(ref vfstype) => vfstype == &self.vfstype,
-            &Search::MntOps(ref mntops) => self.mntops.contains(mntops),
-            &Search::Freq(ref dumpfield) => dumpfield == &self.freq,
-            &Search::PassNo(ref passno) => passno == &self.passno,
+            &MountParam::Spec(spec) => spec == &self.spec,
+            &MountParam::File(file) => file == &self.file,
+            &MountParam::VfsType(vfstype) => vfstype == &self.vfstype,
+            &MountParam::MntOps(mntops) => self.mntops.contains(mntops),
+            &MountParam::Freq(dumpfield) => dumpfield == &self.freq,
+            &MountParam::PassNo(passno) => passno == &self.passno,
         }
     }
 }
@@ -303,7 +303,7 @@ mod test {
     use std::io::{BufReader, BufRead, Cursor};
     use std::path::{Path, PathBuf};
     use std::str::FromStr;
-    use super::{DumpField, MountEntry, MountIter, MntOps, get_mount_from, get_submounts_from, Search};
+    use super::{DumpField, MntOps, MountEntry, MountIter, MountParam, get_mount_from, get_submounts_from};
 
     #[test]
     fn test_line_root() {
@@ -450,20 +450,30 @@ mod test {
 
         // search
         let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
-        assert_eq!(mounts.find(|m| m.contains(&Search::Spec(String::from("rootfs"))) ).unwrap(), mount_root.clone());
+        assert_eq!(mounts.find(|m|
+               m.contains(&MountParam::Spec("rootfs"))
+            ).unwrap(), mount_root.clone());
         let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
-        assert_eq!(mounts.find(|m| m.contains(&Search::File(PathBuf::from("/"))) ).unwrap(), mount_root.clone());
+        assert_eq!(mounts.find(|m|
+                m.contains(&MountParam::File(Path::new("/")))
+            ).unwrap(), mount_root.clone());
         let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
-        assert_eq!(mounts.find(|m| m.contains(&Search::VfsType(String::from("tmpfs"))) ).unwrap(), mount_tmp.clone());
+        assert_eq!(mounts.find(|m|
+                m.contains(&MountParam::VfsType("tmpfs"))
+            ).unwrap(), mount_tmp.clone());
         let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
         let mnt_ops = [MntOps::Write(true), MntOps::Suid(false), MntOps::Dev(false), MntOps::Exec(false)];
         assert_eq!(mounts.find(|m| {
-                mnt_ops.iter().all( |o| m.contains(&Search::MntOps(o.clone())) )
+                mnt_ops.iter().all( |o| m.contains(&MountParam::MntOps(o)) )
             }).unwrap(), mount_sysfs.clone());
 
         let mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());
-        assert_eq!(mounts.filter(|m| m.contains(&Search::Freq(DumpField::Ignore))).collect::<Vec<_>>(), mounts_all.clone());
+        assert_eq!(mounts.filter(|m|
+                 m.contains(&MountParam::Freq(&DumpField::Ignore))
+            ).collect::<Vec<_>>(), mounts_all.clone());
         let mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());
-        assert_eq!(mounts.filter(|m| m.contains(&Search::PassNo(None))).collect::<Vec<_>>(), mounts_all.clone());
+        assert_eq!(mounts.filter(|m|
+                m.contains(&MountParam::PassNo(&None))
+            ).collect::<Vec<_>>(), mounts_all.clone());
     }
 }
