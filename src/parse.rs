@@ -17,7 +17,6 @@ extern crate libc;
 use error::*;
 use self::libc::c_int;
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::convert::{AsRef, From};
 use std::fmt;
 use std::fs::File;
@@ -36,7 +35,7 @@ pub enum DumpField {
 
 pub type PassField = Option<c_int>;
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum MntOps {
     Atime(bool),
     DirAtime(bool),
@@ -78,7 +77,7 @@ pub enum Search {
     Spec(String),
     File(PathBuf),
     VfsType(String),
-    MntOps(Vec<MntOps>),
+    MntOps(MntOps),
     Freq(DumpField),
     PassNo(PassField),
 }
@@ -99,12 +98,7 @@ impl MountEntry {
             &Search::Spec(ref spec) => spec == &self.spec,
             &Search::File(ref file) => file == &self.file,
             &Search::VfsType(ref vfstype) => vfstype == &self.vfstype,
-            &Search::MntOps(ref mntops) => {
-                // All the opts must be present for a match
-                let current_ops: HashSet<_> = self.mntops.iter().cloned().collect();
-                let requested_ops: HashSet<_> = mntops.iter().cloned().collect();
-                return current_ops.is_superset(&requested_ops);
-            },
+            &Search::MntOps(ref mntops) => self.mntops.contains(mntops),
             &Search::Freq(ref dumpfield) => dumpfield == &self.freq,
             &Search::PassNo(ref passno) => passno == &self.passno,
         }
@@ -194,17 +188,6 @@ pub fn get_mount<T>(target: T) -> Result<Option<MountEntry>, ParseError> where T
     get_mount_from(target, try!(MountIter::new_from_proc()))
 }
 
-/// Get the mount point(s) which match the `search` criteria using a custom `BufRead`
-pub fn get_mount_search_from<T>(search: &Search, iter: MountIter<T>)
-    -> Result<MountIter<T>, ParseError> where T: BufRead {
-    Ok(MountIter::new_search_from_existing(iter, search))
-}
-
-/// Get the mount point(s) which match the `search` criteria using */proc/mounts*
-pub fn get_mount_search(search: &Search) -> Result<MountIter<BufReader<File>>, ParseError> {
-    get_mount_search_from(search, try!(MountIter::new_from_proc()))
-}
-
 /// Find the potential mount point providing readable or writable access to a path
 ///
 /// Do not check the path existence but its potentially parent mount point.
@@ -279,21 +262,12 @@ impl Ord for MountEntry {
 
 pub struct MountIter<T> {
     lines: Enumerate<Lines<T>>,
-    search: Option<Search>,
 }
 
 impl<T> MountIter<T> where T: BufRead {
     pub fn new(mtab: T) -> MountIter<T> {
         MountIter {
             lines: mtab.lines().enumerate(),
-            search: None
-        }
-    }
-
-    pub fn new_search_from_existing(iter: MountIter<T>, search: &Search) -> MountIter<T> {
-        MountIter {
-            lines: iter.lines,
-            search: Some(search.clone())
         }
     }
 }
@@ -309,33 +283,15 @@ impl<T> Iterator for MountIter<T> where T: BufRead {
     type Item = Result<MountEntry, ParseError>;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        loop {
-            match self.lines.next() {
-                Some((nb, line)) => match line {
-                    Ok(line) => match <MountEntry as FromStr>::from_str(line.as_ref()) {
-                        Ok(m) => {
-                            if let Some(ref s) = self.search {
-                                if m.contains(&s) {
-                                    return Some(Ok(m));
-                                } else {
-                                    continue;
-                                }
-                            } else {
-                                return Some(Ok(m));
-                            }
-                        }
-                        Err(e) => {
-                            return Some(Err(ParseError::new(format!("Failed at line {}: {}", nb, e))));
-                        }
-                    },
-                    Err(e) => {
-                        return Some(Err(From::from(e)));
-                    },
+        match self.lines.next() {
+            Some((nb, line)) => Some(match line {
+                Ok(line) => match <MountEntry as FromStr>::from_str(line.as_ref()) {
+                    Ok(m) => Ok(m),
+                    Err(e) => Err(ParseError::new(format!("Failed at line {}: {}", nb, e))),
                 },
-                None => {
-                    return None;
-                },
-            }
+                Err(e) => Err(From::from(e)),
+            }),
+            None => None,
         }
     }
 }
@@ -347,7 +303,7 @@ mod test {
     use std::io::{BufReader, BufRead, Cursor};
     use std::path::{Path, PathBuf};
     use std::str::FromStr;
-    use super::{DumpField, MountEntry, MountIter, MntOps, get_mount_from, get_submounts_from, get_mount_search_from, Search};
+    use super::{DumpField, MountEntry, MountIter, MntOps, get_mount_from, get_submounts_from, Search};
 
     #[test]
     fn test_line_root() {
@@ -492,18 +448,22 @@ mod test {
         let mounts = MountIter::new(buf.clone());
         assert_eq!(get_mount_from("/var/", mounts).ok(), Some(Some(mount_root.clone())));
 
-        let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::Spec(String::from("rootfs")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_root.clone());
-        let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::File(PathBuf::from("/")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_root.clone());
-        let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::VfsType(String::from("tmpfs")), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_tmp.clone());
-        let mounts = MountIter::new(buf.clone());
-        let mnt_ops = vec![MntOps::Write(true), MntOps::Suid(false), MntOps::Dev(false), MntOps::Exec(false)];
-        assert_eq!(get_mount_search_from(&Search::MntOps(mnt_ops), mounts).unwrap().take(1).next().unwrap().unwrap(), mount_sysfs.clone());
-        let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::Freq(DumpField::Ignore), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
-        let mounts = MountIter::new(buf.clone());
-        assert_eq!(get_mount_search_from(&Search::PassNo(None), mounts).unwrap().filter_map(Result::ok).collect::<Vec<_>>(), mounts_all.clone());
+        // search
+        let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
+        assert_eq!(mounts.find(|m| m.contains(&Search::Spec(String::from("rootfs"))) ).unwrap(), mount_root.clone());
+        let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
+        assert_eq!(mounts.find(|m| m.contains(&Search::File(PathBuf::from("/"))) ).unwrap(), mount_root.clone());
+        let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
+        assert_eq!(mounts.find(|m| m.contains(&Search::VfsType(String::from("tmpfs"))) ).unwrap(), mount_tmp.clone());
+        let mut mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());;
+        let mnt_ops = [MntOps::Write(true), MntOps::Suid(false), MntOps::Dev(false), MntOps::Exec(false)];
+        assert_eq!(mounts.find(|m| {
+                mnt_ops.iter().all( |o| m.contains(&Search::MntOps(o.clone())) )
+            }).unwrap(), mount_sysfs.clone());
+
+        let mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());
+        assert_eq!(mounts.filter(|m| m.contains(&Search::Freq(DumpField::Ignore))).collect::<Vec<_>>(), mounts_all.clone());
+        let mounts = MountIter::new(buf.clone()).map(|m| m.ok().unwrap());
+        assert_eq!(mounts.filter(|m| m.contains(&Search::PassNo(None))).collect::<Vec<_>>(), mounts_all.clone());
     }
 }
